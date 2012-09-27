@@ -183,6 +183,24 @@ classdef UniTopMOpt < handle
         % GROUP AND ARM PICKING METHODS %
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
+        function [best_group] = pick_group(self, group_confs, group_costs)
+            % Pick a group to pull from the managed MultiArmBandit. Ignore the
+            % groups in sig_groups (which are already assumed confident).
+            if (self.group_count == 1)
+                best_group = 1;
+                return
+            end
+            if ~exist('group_costs','var')
+                group_costs = self.compute_group_costs();
+            end
+            free_groups = find(group_confs < self.sig_thresh);
+            free_costs = group_costs(free_groups);
+            %[best_cost best_idx] = min(free_costs);
+            %best_group = free_groups(best_idx);
+            best_group = randsample(free_groups,1,true,free_costs.^(-1));
+            return
+        end
+        
         function [best_arm] = pick_arm_ucb(self, group)
             % Perform arm selection using the generalized version of the
             % criterion method described in: "Multi-Bandit Best Arm Seleciton",
@@ -352,19 +370,27 @@ classdef UniTopMOpt < handle
             return
         end
         
+        function [group_costs] = compute_group_costs(self)
+            % Compute some estimate of the cost of each group of bandit arms
+            group_costs = zeros(1, self.group_count);
+            for g=1:self.group_count,
+                g_costs = StaticTopMOpt.map_comp_cost(...
+                    self.bandit_stats, g, self.top_m, 10);
+                group_costs(g) = mean(g_costs);
+            end
+            return
+        end
+        
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % TRIAL MANAGEMENT METHODS %
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
-        function [best_group] = run_trial(self, epsilon, group_confs)
+        function [best_group] = run_trial(self, epsilon, group_confs, group_costs)
             % Run a single trial with the managed MultiArmBandit. Use
             % epsilon-greedy group/arm selection. Group is selected first, by
             % Thompson-like sampling, and then an arm from within that group is
             % selected by Thompson-like sampling.
             if (rand() < epsilon)
-                best_group = randi(self.group_count);
-                best_arm = randi(self.arm_count);
-            else
                 if (self.all_uniform)
                     best_arm = mod(self.prev_arm, self.arm_count) + 1;
                     if (best_arm == 1)
@@ -380,11 +406,18 @@ classdef UniTopMOpt < handle
                         best_arm = self.pick_arm_bayes(best_group);
                     end
                 end
+                self.prev_group = best_group;
+                self.prev_arm = best_arm;
+            else
+                best_group = self.pick_group(group_confs, group_costs);
+                if (self.do_bayes ~= 1)
+                    best_arm = self.pick_arm_ucb(best_group);
+                else
+                    best_arm = self.pick_arm_bayes(best_group);
+                end
             end
             % Run a trial for the selected arm
             self.pull_arm(best_group,best_arm);
-            self.prev_group = best_group;
-            self.prev_arm = best_arm;
             return
         end
         
@@ -464,6 +497,7 @@ classdef UniTopMOpt < handle
             init_pulls = self.uniform_allocation(init_rounds);
             g_confs = get_group_confs(1000);
             g_sprobs = self.compute_succ_probs();
+            g_costs = self.compute_group_costs();
             for t_num=1:trial_rounds,
                 % Run a trial (i.e. pull an arm)
                 if (t_num <= init_rounds)
@@ -471,11 +505,12 @@ classdef UniTopMOpt < handle
                     self.pull_arm(init_pulls(t_num,1),init_pulls(t_num,2));
                 else
                     % Do a "selected" arm trial
-                    self.run_trial(epsilon, g_confs);
+                    self.run_trial(epsilon, g_sprobs, g_costs);
                 end
                 % Compute the set of significant groups (sometimes)
                 if (mod(t_num,100) == 0)
                     g_confs = get_group_confs(100);
+                    g_costs = self.compute_group_costs();
                     g_sprobs = self.compute_succ_probs();
                 end
                 group_confs(:,t_num) = g_confs;
@@ -487,7 +522,9 @@ classdef UniTopMOpt < handle
                     for gr=1:min(self.group_count,5)
                         fprintf('(%2.d, %.2f) ', gid(gr), gcs(gr));
                     end
-                    fprintf('\n');
+                    pc = self.get_pull_counts();
+                    gpc = sum(pc,2);
+                    fprintf('1P: %.4f\n', gpc(1) / sum(gpc));
                 end
             end
             results = struct();
