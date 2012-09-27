@@ -459,23 +459,25 @@ classdef UCBTopMOpt < handle
                     self.pull_arm(init_pulls(t_num,1),init_pulls(t_num,2));
                 else
                     % Do a "selected" arm trial
-                    self.run_trial(epsilon, g_confs);
+                    self.run_trial(epsilon, g_sprobs);
                 end
                 % Compute the set of significant groups (sometimes)
-                if (mod(t_num,50) == 0)
+                if (mod(t_num,100) == 0)
                     g_confs = get_group_confs(100);
                     g_sprobs = self.compute_succ_probs();
                 end
                 group_confs(:,t_num) = g_confs;
                 group_sprobs(:,t_num) = g_sprobs;
                 % Display the group confidences
-                if (mod(t_num, 200) == 0)
+                if (mod(t_num, 500) == 0)
                     [gcs gid] = sort(g_sprobs,'descend');
                     fprintf('%4.d: ',t_num);
                     for gr=1:min(self.group_count,5)
                         fprintf('(%2.d, %.2f) ', gid(gr), gcs(gr));
                     end
-                    fprintf('\n');
+                    pc = self.get_pull_counts();
+                    gpc = sum(pc,2);
+                    fprintf('1P: %.4f\n', gpc(1) / sum(gpc));
                 end
             end
             results = struct();

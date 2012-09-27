@@ -1,10 +1,10 @@
 clear; close all;
 
 test_count = 100;
-trial_rounds = 10000;
+trial_rounds = 15000;
 group_count = 1;
-arm_count = 64;
-top_m = 16;
+arm_count = 50;
+top_m = 10;
 init_rounds = 10 * (group_count * arm_count);
 a_0 = 1;
 b_0 = 1;
