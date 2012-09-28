@@ -422,7 +422,7 @@ classdef PACTopMOpt < handle
                     self.run_trial(epsilon, g_sprobs);
                 end
                 % Compute the set of significant groups (sometimes)
-                if (mod(t_num,100) == 0)
+                if (mod(t_num,50) == 0)
                     g_confs = get_group_confs(100);
                     g_sprobs = self.compute_succ_probs();
                 end

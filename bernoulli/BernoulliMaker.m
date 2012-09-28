@@ -91,8 +91,7 @@ classdef BernoulliMaker < handle
             % easy_gap. For hard groups, the gap between the m best arms and
             % the remaining arms is guaranteed to be less than hard_gap.
             scale = 0.8;
-            easy_range = easy_range ./ scale;
-            hard_range = hard_range ./ scale;
+            shift = 0.1;
             bandit = MultiArmBandit(...
                 self.group_count, self.arm_count, 'bernoulli');
             easy_count = round(self.group_count * (1 - hard_rate));
@@ -102,10 +101,11 @@ classdef BernoulliMaker < handle
                     % between its largest and second largest returns is less
                     % than hard_gap.
                     [a_returns gap] = self.get_returns_gap();
+                    a_returns = (a_returns .* scale) + shift;
                     while ((gap > hard_range(2)) || gap < hard_range(1))
                         [a_returns gap] = self.get_returns_gap();
+                        a_returns = (a_returns .* scale) + shift;
                     end
-                    a_returns = (a_returns .* scale) + ((1 - scale) / 2);
                     for a=1:bandit.arm_count,
                         bandit.arm_groups(g,a).return = a_returns(a);
                     end
@@ -114,10 +114,11 @@ classdef BernoulliMaker < handle
                     % between its largest and second largest returns is more
                     % than easy_gap.
                     [a_returns gap] = self.get_returns_gap();
+                    a_returns = (a_returns .* scale) + shift;
                     while ((gap > easy_range(2)) || gap < easy_range(1))
                         [a_returns gap] = self.get_returns_gap();
+                        a_returns = (a_returns .* scale) + shift;
                     end
-                    a_returns = (a_returns .* scale) + ((1 - scale) / 2);
                     for a=1:bandit.arm_count,
                         bandit.arm_groups(g,a).return = a_returns(a);
                     end
@@ -171,14 +172,18 @@ classdef BernoulliMaker < handle
             % Make a bernoulli bandit and set its arm returns. For this
             % distribution, each group has a gap of at least min gap and at most
             % max gap between its top m arms and the remaining arms.
+            scale = 0.8;
+            shift = 0.1;
             bandit = MultiArmBandit(...
                 self.group_count, self.arm_count, 'bernoulli');
             for g=1:bandit.group_count,
                 % Pick an arm return distribution such that the difference
                 % between its top m arms and the rest is in [min_gap...max_gap]
                 [a_returns gap] = self.get_returns_gap();
+                a_returns = (a_returns .* scale) + shift;
                 while ((gap > max_gap) || (gap < min_gap))
                     [a_returns gap] = self.get_returns_gap();
+                    a_returns = (a_returns .* scale) + shift;
                 end
                 % Use the ordering to assign a return to each arm
                 for a=1:bandit.arm_count,
@@ -188,7 +193,6 @@ classdef BernoulliMaker < handle
             bandit.reset_arms(1);
             return
         end
-         
     end
     
     methods (Static = true)

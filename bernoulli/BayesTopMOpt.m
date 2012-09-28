@@ -351,10 +351,12 @@ classdef BayesTopMOpt < handle
         function [group_costs] = compute_group_costs(self)
             % Compute some estimate of the cost of each group of bandit arms
             group_costs = zeros(1, self.group_count);
-            for g=1:self.group_count,
-                g_costs = StaticTopMOpt.map_comp_cost(...
-                    self.bandit_stats, g, self.top_m, self.gap_samples);
-                group_costs(g) = mean(g_costs);
+            if (self.group_count > 1)
+                for g=1:self.group_count,
+                    g_costs = StaticTopMOpt.map_comp_cost(...
+                        self.bandit_stats, g, self.top_m, self.gap_samples);
+                    group_costs(g) = mean(g_costs);
+                end
             end
             return
         end
@@ -467,8 +469,8 @@ classdef BayesTopMOpt < handle
                     self.run_trial(epsilon, g_sprobs, g_costs);
                 end
                 % Compute the set of significant groups (sometimes)
-                if (mod(t_num,100) == 0)
-                    if (mod(t_num,100) == 0)
+                if (mod(t_num,50) == 0)
+                    if (mod(t_num,50) == 0)
                         g_costs = self.compute_group_costs();
                     end
                     g_confs = get_group_confs(100);
