@@ -91,6 +91,5 @@ for top_m=[1 3 5],
         end
     end
     fname = sprintf('res_cost_estimates_10x%d.mat',top_m);
-    save(fname);
-    
+    save(fname);  
 end

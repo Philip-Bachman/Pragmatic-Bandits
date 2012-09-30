@@ -193,7 +193,43 @@ classdef BernoulliMaker < handle
             bandit.reset_arms(1);
             return
         end
-    end
+ 
+        function [bandit] = distro_6(self, group_gaps)
+            % Make a bernoulli bandit and set its arm returns.
+            if (numel(group_gaps) ~= self.group_count)
+                error('BernoulliMaker: gap list should match group count.\n');
+            end
+            bandit = MultiArmBandit(...
+                self.group_count, self.arm_count, 'bernoulli');
+            for g=1:bandit.group_count,
+                b_gap = group_gaps(g);
+                bandit.arm_groups(g,1).return = 0.5 + b_gap;
+                a_returns = rand(1,bandit.arm_count-1) .* 0.5;
+                a_returns = a_returns + (0.5 - max(a_returns));
+                a_returns = sort(a_returns,'descend');
+                for a=2:bandit.arm_count,
+                    bandit.arm_groups(g,a).return = a_returns(a-1);
+                end
+            end
+            % Reset group order, to be from least to most complex
+            g_costs = bandit.compute_ucb_costs(1);
+            [g_costs g_idx] = sort(g_costs,'ascend');
+            b_returns = zeros(self.group_count, self.arm_count);
+            for g=1:bandit.group_count,
+                for a=1:bandit.arm_count,
+                    b_returns(g,a) = bandit.arm_groups(g_idx(g),a).return;
+                end
+            end
+            for g=1:bandit.group_count,
+                for a=1:bandit.arm_count,
+                    bandit.arm_groups(g,a).return = b_returns(g,a);
+                end
+            end
+            bandit.reset_arms(1);
+            return
+        end
+        
+    end % END INSTANCE METHODS
     
     methods (Static = true)
         

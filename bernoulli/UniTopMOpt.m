@@ -376,7 +376,7 @@ classdef UniTopMOpt < handle
             for g=1:self.group_count,
                 g_costs = StaticTopMOpt.map_comp_cost(...
                     self.bandit_stats, g, self.top_m, 10);
-                group_costs(g) = mean(g_costs);
+                group_costs(g) = max(mean(g_costs), 1);
             end
             return
         end
@@ -442,7 +442,7 @@ classdef UniTopMOpt < handle
                     self.pull_arm(init_pulls(t_num,1),init_pulls(t_num,2));
                 else
                     % Do a "selected" arm trial
-                    self.run_trial(epsilon, confs);
+                    self.run_trial(epsilon, succ_probs);
                 end
                 % Compute the set of significant groups (sometimes)
                 if (mod(t_num,10) == 0)

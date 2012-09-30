@@ -1,52 +1,53 @@
-% clear; close all;
-% 
-% % Bandit structure parameters
-% group_count = 1;
-% arm_count = 10;
-% init_rounds = 10 * (group_count * arm_count);
-% a_0 = 1;
-% b_0 = 1;
-% trial_rounds = 8000;
-% pred_rounds = 50:25:5000;
-% top_ms = [1 3 5];
-% test_count = 250;
-% val_samples = 50;
-% 
-% for m=1:numel(top_ms),
-%     top_m = top_ms(m);
-%     % Result recording arrays
-%     comp_costs = zeros(test_count,1);
-%     gap_sizes = zeros(test_count,1); 
-%     gap_costs = zeros(test_count, numel(pred_rounds), val_samples);
-%     sum_costs = zeros(test_count, numel(pred_rounds), val_samples);
-%     opt_costs = zeros(test_count, numel(pred_rounds), val_samples);
-%     for t_num=1:test_count,
-%         fprintf('==================================================\n');
-%         fprintf('Test %d, top_m: %d\n',t_num, top_m);
-%         fprintf('==================================================\n');
-%         % Make a bandit maker, a bandit, and an optimizer
-%         bandit_maker = BernoulliMaker(group_count, arm_count, top_m);
-%         bandit = bandit_maker.distro_5(2^(-5), 2^(-2));
-%         opt = BayesDiagsOpt(bandit, top_m, a_0, b_0);
-%         % Run the optimizer on the bandit
-%         [ res ] = opt.run_trials(trial_rounds,init_rounds,0.0,1.0,0.0);
-%         % Process results for this test
-%         gap_sizes(t_num) = bandit.arm_groups(1,top_m).return - ...
-%             bandit.arm_groups(1,top_m+1).return;
-%         sprobs = conv(res.group_sprobs, ones(1,300)./300, 'same');
-%         if (max(sprobs) > 0.95)
-%             comp_costs(t_num) = find(sprobs > 0.95,1,'first');
-%         else
-%             comp_costs(t_num) = trial_rounds;
-%         end
-%         gap_costs(t_num,:,:) = -res.group_gaps(pred_rounds,1:val_samples);
-%         sum_costs(t_num,:,:) = -res.group_sums(pred_rounds,1:val_samples);
-%         opt_costs(t_num,:,:) = res.opt_costs(pred_rounds,1:val_samples);
-%         fprintf('GAP: %.4f, COST: %d\n',gap_sizes(t_num),comp_costs(t_num));
-%     end
-%     fname = sprintf('res_bayes_diags_10x%d.mat',top_m);
-%     save(fname);
-% end
+clear; close all;
+
+% Bandit structure parameters
+group_count = 1;
+arm_count = 10;
+init_rounds = 10 * (group_count * arm_count);
+a_0 = 1;
+b_0 = 1;
+trial_rounds = 25000;
+pred_rounds = 50:50:7500;
+top_ms = [1]; % 3 5];
+test_count = 500;
+val_samples = 50;
+bandit_gaps = logspace(-2,-1, 1000);
+
+for m=1:numel(top_ms),
+    top_m = top_ms(m);
+    % Result recording arrays
+    comp_costs = zeros(test_count,1);
+    gap_sizes = zeros(test_count,1); 
+    gap_costs = zeros(test_count, numel(pred_rounds), val_samples);
+    sum_costs = zeros(test_count, numel(pred_rounds), val_samples);
+    opt_costs = zeros(test_count, numel(pred_rounds), val_samples);
+    for t_num=1:test_count,
+        fprintf('==================================================\n');
+        fprintf('Test %d, top_m: %d\n',t_num, top_m);
+        fprintf('==================================================\n');
+        % Make a bandit maker, a bandit, and an optimizer
+        bandit_maker = BernoulliMaker(group_count, arm_count, top_m);
+        bandit_gap = randsample(bandit_gaps,1);
+        bandit = bandit_maker.distro_2(bandit_gap, 0.0, 0.0);
+        opt = BayesDiagsOpt(bandit, top_m, a_0, b_0);
+        % Run the optimizer on the bandit
+        [ res ] = opt.run_trials(trial_rounds,init_rounds,0.0,1.0,0.0);
+        % Process results for this test
+        gap_sizes(t_num) = bandit_gap;
+        sprobs = conv(res.group_sprobs, ones(1,200)./200, 'same');
+        if (max(sprobs) > 0.98)
+            comp_costs(t_num) = find(sprobs > 0.98,1,'first');
+        else
+            comp_costs(t_num) = trial_rounds;
+        end
+        gap_costs(t_num,:,:) = -res.group_gaps(pred_rounds,1:val_samples);
+        sum_costs(t_num,:,:) = -res.group_sums(pred_rounds,1:val_samples);
+        opt_costs(t_num,:,:) = res.opt_costs(pred_rounds,1:val_samples);
+        fprintf('GAP: %.4f, COST: %d\n',gap_sizes(t_num),comp_costs(t_num));
+    end
+    fname = sprintf('res_bayes_diags_10x%d.mat',top_m);
+    save(fname);
+end
     
 hits = zeros(1,2500);
 val_samples = size(gap_costs,3);

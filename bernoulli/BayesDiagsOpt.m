@@ -386,22 +386,10 @@ classdef BayesDiagsOpt < handle
                     end
                     o_costs = StaticTopMOpt.ucb_comp_cost(...
                         self.bandit_stats, 1, self.top_m, sample_count);
-                    % Display the current number of significant groups and the
-                    % average group confidence.
-                    fprintf('%4.d: %.4f\n', t_num, mean(confs));
-%                     % Compute analytical optimator based cost estimates
-%                     [ results ] = StaticTopMOpt.optimate_bayes(...
-%                         self.bandit_stats, 1, self.top_m, trial_rounds, ...
-%                         init_rounds, sample_count);
-%                     afp = results.all_fail_probs;
-%                     o_costs = zeros(1,sample_count);
-%                     for s=1:sample_count,
-%                         if (min(afp(s,:)) < 0.05)
-%                             o_costs(s) = find(afp(s,:) < 0.05, 1, 'first');
-%                         else
-%                             o_costs(s) = trial_rounds;
-%                         end
-%                     end
+                    if (mod(t_num, 500) == 0)
+                        % Display the current trial and confidence
+                        fprintf('%4.d: %.4f\n', t_num, mean(succ_probs));
+                    end
                 end
                 % Store information about this round
                 arm_selects(t_num,:,:) = a_selects ./ sample_count;

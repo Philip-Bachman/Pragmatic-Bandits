@@ -15,7 +15,7 @@ group_count = 1;
 a_0 = 1;
 b_0 = 1;
 
-for param_set=1:size(param_sets,2),
+for param_set=1:size(param_sets,1),
     % Initialize arm count / subset size dependent parameters
     arm_count = param_sets(param_set,1);
     top_m = param_sets(param_set,2);
