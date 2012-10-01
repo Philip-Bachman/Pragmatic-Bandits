@@ -1,5 +1,5 @@
-classdef BayesTopMOpt < handle
-    % BayesTopMOpt works a MultiArmBandit of type 'bernoulli'
+classdef BayesS2TopMOpt < handle
+    % BayesS2TopMOpt works a MultiArmBandit of type 'bernoulli'
     % This class performs 'most successful tests' optimization of a
     % MultiArmBandit instance of type 'bernoulli'. The objective, for a given
     % problem instance, is to maximize the number of 'statistically significant
@@ -24,15 +24,13 @@ classdef BayesTopMOpt < handle
         sig_thresh
         % top_m is the number of top arms to try and select
         top_m
-        % gap_samples gives the number of samples for group selection
-        gap_samples
         % exp_rate is the rate at which to select arms using posterior variance
         exp_rate
     end
     
     methods
-        function [self] = BayesTopMOpt(ma_bandit, top_m, a_0, b_0)
-            % Constructor for multiarmed bandit BayesTopMOpt 
+        function [self] = BayesS2TopMOpt(ma_bandit, top_m, a_0, b_0)
+            % Constructor for multiarmed bandit BayesS2TopMOpt 
             if ~exist('a_0','var')
                 a_0 = 2.0;
             end
@@ -44,7 +42,6 @@ classdef BayesTopMOpt < handle
             self.sig_thresh = 0.99;
             self.set_bandit(ma_bandit);
             self.top_m = top_m;
-            self.gap_samples = 10;
             self.exp_rate = 0.05;
             return
         end
@@ -164,7 +161,7 @@ classdef BayesTopMOpt < handle
         % GROUP AND ARM PICKING METHODS %
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
-        function [best_group] = pick_group(self, group_confs, group_costs)
+        function [best_group] = pick_group(self, group_confs)
             % Pick a group to pull from the managed MultiArmBandit. Ignore the
             % groups in sig_groups (which are already assumed confident).
             arm_mus = zeros(self.group_count,self.arm_count);
@@ -184,13 +181,8 @@ classdef BayesTopMOpt < handle
                     % For group, get the "approximate" gap between arms m and m+1.
                     [g_mus g_idx] = sort(arm_mus(g,:),'descend');
                     g_vars = arm_vars(g,g_idx);
-                    %g_gap = (g_mus(self.top_m) - g_mus(self.top_m+1)) / ...
-                    %    sqrt(g_vars(self.top_m) + g_vars(self.top_m+1));
-                    gap_loc = (g_mus(self.top_m) + g_mus(self.top_m+1)) / 2;
-                    g_gaps = abs(g_mus - gap_loc);
-                    numer = (sqrt(g_vars) + sqrt(g_vars + ((16/3).*g_gaps))).^2;
-                    denom = g_gaps.^2;
-                    g_gap = -sum(numer ./ denom);
+                    g_gap = (arm_mus(g,1) - g_mus(self.top_m+1)) / ...
+                        sqrt(arm_vars(g,1) + g_vars(self.top_m+1));
                     if (g_gap > best_gap)
                         % Only consider groups that are not yet "significant".
                         best_gap = g_gap;
@@ -200,24 +192,6 @@ classdef BayesTopMOpt < handle
             end
             return
         end
-        
-%         function [best_group] = pick_group(self, group_confs, group_costs)
-%             % Pick a group to pull from the managed MultiArmBandit. Ignore the
-%             % groups in sig_groups (which are already assumed confident).
-%             if (self.group_count == 1)
-%                 best_group = 1;
-%                 return
-%             end
-%             if ~exist('group_costs','var')
-%                 group_costs = self.compute_group_costs();
-%             end
-%             free_groups = find(group_confs < self.sig_thresh);
-%             free_costs = group_costs(free_groups);
-%             %[best_cost best_idx] = min(free_costs);
-%             %best_group = free_groups(best_idx);
-%             best_group = randsample(free_groups,1,true,free_costs.^(-1));
-%             return
-%         end
         
         function [best_arm min_gap] = pick_arm(self, group, arm_confs)
             % Pick an arm to pull from the managed MultiArmBandit, given the
@@ -348,25 +322,12 @@ classdef BayesTopMOpt < handle
             return
         end
         
-        function [group_costs] = compute_group_costs(self)
-            % Compute some estimate of the cost of each group of bandit arms
-            group_costs = zeros(1, self.group_count);
-            if (self.group_count > 1)
-                for g=1:self.group_count,
-                    g_costs = StaticTopMOpt.map_comp_cost(...
-                        self.bandit_stats, g, self.top_m, self.gap_samples);
-                    group_costs(g) = mean(g_costs);
-                end
-            end
-            return
-        end
-        
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         % TRIAL MANAGEMENT METHODS %
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
         function [best_group] = ...
-                run_trial(self, epsilon, group_confs, group_costs)
+                run_trial(self, epsilon, group_confs)
             % Run a single trial with the managed MultiArmBandit. Use
             % epsilon-greedy group/arm selection. Group is selected first, by
             % Thompson-like sampling, and then an arm from within that group is
@@ -376,11 +337,7 @@ classdef BayesTopMOpt < handle
                 best_arm = self.pick_arm(best_group, group_confs);
                 %best_arm = randi(self.arm_count);
             else
-                if exist('group_costs','var')
-                    best_group = self.pick_group(group_confs,group_costs);
-                else
-                    best_group = self.pick_group(group_confs);
-                end
+                best_group = self.pick_group(group_confs);
                 best_arm = self.pick_arm(best_group, group_confs);
             end
             % Run a trial for the selected arm
@@ -406,7 +363,7 @@ classdef BayesTopMOpt < handle
                     self.pull_arm(init_pulls(t_num,1),init_pulls(t_num,2));
                 else
                     % Do a "selected" arm trial
-                    self.run_trial(epsilon, confs);
+                    self.run_trial(epsilon, succ_probs);
                 end
                 % Compute the set of significant groups (sometimes)
                 if (mod(t_num,10) == 0)
@@ -429,8 +386,7 @@ classdef BayesTopMOpt < handle
                 % Display the current number of significant groups and the
                 % average group confidence.
                 if (mod(t_num, 50) == 0)
-                    fprintf('%4.d: (%d, %.4f, %.4f)\n', ...
-                        t_num,numel(sig_groups),mean(confs),select_accs(t_num));
+                    fprintf('%4.d: %.4f\n', t_num, mean(confs));
                 end
             end
             results = struct();
@@ -458,7 +414,6 @@ classdef BayesTopMOpt < handle
             init_pulls = self.uniform_allocation(init_rounds);
             g_confs = get_group_confs(1000);
             g_sprobs = self.compute_succ_probs();
-            g_costs = self.compute_group_costs();
             for t_num=1:trial_rounds,
                 % Run a trial (i.e. pull an arm)
                 if (t_num <= init_rounds)
@@ -466,13 +421,10 @@ classdef BayesTopMOpt < handle
                     self.pull_arm(init_pulls(t_num,1),init_pulls(t_num,2));
                 else
                     % Do a "selected" arm trial
-                    self.run_trial(epsilon, g_sprobs, g_costs);
+                    self.run_trial(epsilon, g_sprobs);
                 end
                 % Compute the set of significant groups (sometimes)
                 if (mod(t_num,50) == 0)
-                    if (mod(t_num,50) == 0)
-                        g_costs = self.compute_group_costs();
-                    end
                     g_confs = get_group_confs(100);
                     g_sprobs = self.compute_succ_probs();
                 end

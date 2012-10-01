@@ -1,14 +1,20 @@
+% Test scenario 2 situations, i.e. preferentially allocate trials to bandits
+% whose first arm seems likely to be easily proven best.
+
 clear; close all;
 
 test_count = 100;
-trial_rounds = 80000;
-group_count = 15;
+trial_rounds = 60000;
+a1_count = 5;
+a2_count = 15;
+group_count = a1_count + a2_count;
 arm_count = 10;
 top_m = 1;
 init_rounds = 20 * (group_count * arm_count);
 a_0 = 1;
 b_0 = 1;
-bandit_maker = BernoulliMaker(group_count, arm_count, top_m);
+min_gap = 0.01;
+max_gap = 0.10;
 
 all_conf_times = zeros(test_count, group_count, 3);
 pull_counts1 = zeros(test_count, group_count);
@@ -19,18 +25,21 @@ for t_num=1:test_count,
     fprintf('==================================================\n');
     fprintf('TEST ROUND %d\n',t_num);
     fprintf('==================================================\n');
-    bandit = bandit_maker.distro_6( logspace(-2,-1,group_count) );
-    fprintf('Bayes-Bayes Trials:\n');
-    opt1 = BayesTopMOpt(bandit, top_m, a_0, b_0);
-    opt1.sig_thresh = 0.98; opt1.gap_samples = 10;
+    % Creater a bandit for this test round
+    a1_gaps = min_gap + (rand(1,a1_count) .* (max_gap - min_gap));
+    a2_gaps = min_gap + (rand(1,a2_count) .* (max_gap - min_gap));
+    bandit = BernoulliMaker.scenario_2( a1_gaps, a2_gaps, arm_count );
+    % Run the various optimizers
+    fprintf('BayesTopS2MOpt Trials:\n');
+    opt1 = BayesS2TopMOpt(bandit, top_m, a_0, b_0);
+    opt1.sig_thresh = 0.985;
     res1 = opt1.run_slim_trials(trial_rounds,init_rounds,0.5);
     pull_counts1(t_num,:) = transpose(sum(opt1.get_pull_counts(),2));
-    fprintf('MAP-UCB Trials:\n');
+    fprintf('MAPTopMOpt Trials:\n');
     opt2 = UniTopMOpt(bandit, top_m, a_0, b_0);
-    opt2.sig_thresh = 0.98;
     res2 = opt2.run_slim_trials(trial_rounds,init_rounds,0.5);
     pull_counts2(t_num,:) = transpose(sum(opt2.get_pull_counts(),2));
-    fprintf('Uniform-UCB Trials:\n');
+    fprintf('UniTopMOpt Trials:\n');
     opt3 = UniTopMOpt(bandit, top_m, a_0, b_0);
     res3 = opt3.run_slim_trials(trial_rounds,init_rounds,1.0);
     pull_counts3(t_num,:) = transpose(sum(opt3.get_pull_counts(),2));
@@ -53,7 +62,7 @@ for t_num=1:test_count,
             end
         end
     end
-    save('res_group_multi.mat');
+    save('res_group_s2.mat');
     t=toc(); fprintf('Elapsed time: %.4f\n',t);
 end
 

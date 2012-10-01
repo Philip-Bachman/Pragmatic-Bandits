@@ -16,7 +16,7 @@ all_sprobs3 = zeros(test_count, trial_rounds);
 pull_counts1 = zeros(test_count, group_count);
 pull_counts2 = zeros(test_count, group_count);
 pull_counts3 = zeros(test_count, group_count);
-for t_num=1:test_count
+for t_num=1:test_count,
     fprintf('==================================================\n');
     fprintf('TEST ROUND %d\n',t_num);
     fprintf('==================================================\n');

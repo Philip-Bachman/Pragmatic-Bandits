@@ -252,6 +252,38 @@ classdef BernoulliMaker < handle
             return
         end
         
+        function [bandit] = scenario_2(a1_gaps, a2_gaps, a_count)
+            % Make a bernoulli bandit and set its arm returns.
+            a1_count = numel(a1_gaps);
+            a2_count = numel(a2_gaps);
+            g_count = a1_count + a2_count;
+            bandit = MultiArmBandit(g_count, a_count, 'bernoulli');
+            for g=1:bandit.group_count,
+                if (g <= a1_count)
+                    % Make a bandit with first arm having largest return
+                    b_gap = a1_gaps(g);
+                    bandit.arm_groups(g,1).return = 0.5 + b_gap;
+                    a_returns = rand(1,bandit.arm_count-1) .* 0.5;
+                    a_returns = a_returns + (0.5 - max(a_returns));
+                    a_returns = sort(a_returns,'descend');
+                    for a=2:bandit.arm_count,
+                        bandit.arm_groups(g,a).return = a_returns(a-1);
+                    end
+                else
+                    % Make a bandit with last arm  having largest return
+                    b_gap = a2_gaps(g-a1_count);
+                    bandit.arm_groups(g,end).return = 0.5 + b_gap;
+                    a_returns = rand(1,bandit.arm_count-1) .* 0.5;
+                    a_returns = a_returns + (0.5 - max(a_returns));
+                    for a=1:(bandit.arm_count-1),
+                        bandit.arm_groups(g,a).return = a_returns(a);
+                    end                    
+                end
+            end
+            bandit.reset_arms(1);
+            return
+        end
+        
         function [bandit] = clone_returns(a_returns)
             % Make a bernoulli bandit and set its arm returns to match those in
             % a_returns (a matrix of size group_count x arm_count)
