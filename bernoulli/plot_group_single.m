@@ -29,29 +29,29 @@ end
 
 % Plot CDF figure for per-algorithm completion times
 method_styles = {'-','-','-'};
-method_colors = [0 0 0; 0.4 0.4 0.4; 0.8 0.8 0.8];
+method_colors = [0 0 0; 0.4 0.4 0.4; 0.7 0.7 0.7];
 
 figure();
-axes('FontSize', 14);
+axes('FontSize', 18);
 axis([1 trial_rounds 0 t_num]);
 hold on;
 plot([0 1e-2], [0 1e-2], method_styles{1}, 'Color', method_colors(1,:), ...
-    'LineWidth', 2);
+    'LineWidth', 4);
 plot([0 1e-2], [0 1e-2], method_styles{2}, 'Color', method_colors(2,:), ...
-    'LineWidth', 2);
+    'LineWidth', 4);
 plot([0 1e-2], [0 1e-2], method_styles{3}, 'Color', method_colors(3,:), ...
-    'LineWidth', 2);
-legend('Greedy-Bayes','Uniform-UCB','Lower-UCB', 'Location', 'Best');
+    'LineWidth', 4);
+legend('GCP-Bayes','Uni-UCB','Gab-UCB', 'Location', 'NorthWest');
 for i=1:3,
     T = 1:100:trial_rounds;
     style = method_styles{i};
     color = method_colors(i,:);
     y = arrayfun(@( t ) sum(all_conf_times(:,i) <= t), T);
     line('XData', T, 'YData', y, 'Color', color, ...
-        'LineWidth', 2, 'LineStyle', style);
+        'LineWidth', 4, 'LineStyle', style);
 end
-xlabel('Trials Allocated','fontsize',14);
-ylabel('Confident Results Achieved','fontsize',14);
-title('Comparing Group Selection Methods','fontsize',14);
+xlabel('Trials Allocated','fontsize',18);
+ylabel('Bandits Completed','fontsize',18);
+title('Group Selection (one easy)','fontsize',18);
     
     

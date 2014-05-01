@@ -30,6 +30,10 @@ classdef UCBTopMOpt < handle
         do_bayes
         % exp_rate controls exploration rate during bayesian selection
         exp_rate
+        % delay gives the simulated delay in responding to trials
+        delay
+        % trial_queue holds queued (fake-delayed) trial outcomes
+        trial_queue
     end
     
     methods
@@ -48,7 +52,9 @@ classdef UCBTopMOpt < handle
             self.top_m = top_m;
             self.trial_count = 0;
             self.do_bayes = 0;
-            self.exp_rate = 0.05;
+            self.exp_rate = 0.00;
+            self.delay = 1;
+            self.trial_queue = [];
             return
         end
         
@@ -83,20 +89,48 @@ classdef UCBTopMOpt < handle
         end
         
         function [ret] = pull_arm(self, group, arm)
-            % Pull the given arm in the managed bandit and record stats
+            % Pull the given arm in the managed bandit and record outcome
             ret = self.bandit.pull_arm(group,arm);
-            pulls = [self.bandit_stats(group,arm).pulls ret];
-            self.bandit_stats(group,arm).pulls = pulls;
-            self.bandit_stats(group,arm).return = mean(pulls);
-            self.bandit_stats(group,arm).var = var(pulls);
-            self.bandit_stats(group,arm).pull_count = numel(pulls);
-            if (ret == 0)
-                self.bandit_stats(group,arm).b_n = ...
-                    self.bandit_stats(group,arm).b_n + 1;
-            else
-                self.bandit_stats(group,arm).a_n = ...
-                    self.bandit_stats(group,arm).a_n + 1;
+            self.trial_queue = [self.trial_queue; group arm ret];
+            if (size(self.trial_queue, 1) >= self.delay)
+                self.process_trials(self.trial_queue);
+                self.trial_queue = [];
             end
+            return
+        end       
+        
+        function [res] = process_trials(self, trial_results)
+            % Update per-arm beliefs to account for the outcomes in
+            % 'trial_results'.
+            %
+            trys = zeros(self.group_count,self.arm_count);
+            rets = zeros(self.group_count,self.arm_count);
+            for t=1:size(trial_results,1),
+                % Get info for this trial
+                group = trial_results(t,1);
+                arm = trial_results(t,2);
+                ret = trial_results(t,3);
+                % Respond to trial outcome
+                trys(group,arm) = trys(group,arm) + 1;
+                rets(group,arm) = rets(group,arm) + ret;
+                self.bandit_stats(group,arm).pulls(end+1) = ret;
+            end
+            % Update per-arm aggregate stats to account for all outcomes
+            for group=1:self.group_count,
+                for arm=1:self.arm_count,
+                    if (trys(group,arm) >= 1)
+                        % Only do updates for arms that were pulled
+                        as = self.bandit_stats(group,arm);
+                        as.return = mean(as.pulls);
+                        as.var = var(as.pulls);
+                        as.pull_count = numel(as.pulls);
+                        as.a_n = as.a_n + rets(group,arm);
+                        as.b_n = as.b_n + (trys(group,arm) - rets(group,arm));
+                        self.bandit_stats(group,arm) = as;
+                    end
+                end
+            end
+            res = 1;
             return
         end
         
@@ -446,7 +480,7 @@ classdef UCBTopMOpt < handle
                 end
                 return
             end
-            self.trial_count = trial_rounds;
+            self.trial_count = round(trial_rounds / 2);
             group_confs = zeros(self.group_count, trial_rounds);
             group_sprobs = zeros(self.group_count, trial_rounds);
             init_pulls = self.uniform_allocation(init_rounds);

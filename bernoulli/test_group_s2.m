@@ -35,34 +35,42 @@ for t_num=1:test_count,
     opt1.sig_thresh = 0.985;
     res1 = opt1.run_slim_trials(trial_rounds,init_rounds,0.5);
     pull_counts1(t_num,:) = transpose(sum(opt1.get_pull_counts(),2));
-    fprintf('MAPTopMOpt Trials:\n');
-    opt2 = UniTopMOpt(bandit, top_m, a_0, b_0);
-    res2 = opt2.run_slim_trials(trial_rounds,init_rounds,0.5);
-    pull_counts2(t_num,:) = transpose(sum(opt2.get_pull_counts(),2));
-    fprintf('UniTopMOpt Trials:\n');
-    opt3 = UniTopMOpt(bandit, top_m, a_0, b_0);
-    res3 = opt3.run_slim_trials(trial_rounds,init_rounds,1.0);
-    pull_counts3(t_num,:) = transpose(sum(opt3.get_pull_counts(),2));
-    % Compute completion times for each group for each method
-    for i=1:3,
-        if (i == 1)
-            sp = res1.group_sprobs;
+    sp = res1.group_sprobs;
+    for g=1:group_count,
+        if (max(sp(g,:)) > 0.98)
+            all_conf_times(t_num,g,1) = find(sp(g,:) > 0.98, 1, 'first');
         else
-            if (i == 2)
-                sp = res2.group_sprobs;
-            else
-                sp = res3.group_sprobs;
-            end
+            all_conf_times(t_num,g,1) = trial_rounds;
         end
-        for g=1:group_count,
-            if (max(sp(g,:)) > 0.98)
-                all_conf_times(t_num,g,i) = find(sp(g,:) > 0.98, 1, 'first');
-            else
-                all_conf_times(t_num,g,i) = trial_rounds;
-            end
-        end
-    end
-    save('res_group_s2.mat');
+    end    
+    %fprintf('MAPTopMOpt Trials:\n');
+    %opt2 = UniTopMOpt(bandit, top_m, a_0, b_0);
+    %res2 = opt2.run_slim_trials(trial_rounds,init_rounds,0.2);
+    %pull_counts2(t_num,:) = transpose(sum(opt2.get_pull_counts(),2));
+    %fprintf('UniTopMOpt Trials:\n');
+    %opt3 = UniTopMOpt(bandit, top_m, a_0, b_0);
+    %res3 = opt3.run_slim_trials(trial_rounds,init_rounds,1.0);
+    %pull_counts3(t_num,:) = transpose(sum(opt3.get_pull_counts(),2));
+    % Compute completion times for each group for each method
+    %for i=1:3,
+    %    if (i == 1)
+    %        sp = res1.group_sprobs;
+    %    else
+    %        if (i == 2)
+    %            sp = res2.group_sprobs;
+    %        else
+    %            sp = res3.group_sprobs;
+    %        end
+    %    end
+    %    for g=1:group_count,
+    %        if (max(sp(g,:)) > 0.98)
+    %            all_conf_times(t_num,g,i) = find(sp(g,:) > 0.98, 1, 'first');
+    %        else
+    %            all_conf_times(t_num,g,i) = trial_rounds;
+    %        end
+    %    end
+    %end
+    save('res_group_s2_bayes.mat');
     t=toc(); fprintf('Elapsed time: %.4f\n',t);
 end
 

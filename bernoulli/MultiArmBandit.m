@@ -70,13 +70,13 @@ classdef MultiArmBandit < handle
                 for a_num=1:self.arm_count,
                     if strcmpi(self.return_type,'bernoulli')
                         r = rand();
-                        p = rand(1,15000) < r;
+                        p = rand(1,10000) < r;
                         self.arm_groups(g_num,a_num).return = r;
                         self.arm_groups(g_num,a_num).pull_seq = p;
                     else
                         r = randn();
                         s = 0.1;
-                        p = (randn(1,15000) .* s) + r;
+                        p = (randn(1,10000) .* s) + r;
                         self.arm_groups(g_num,a_num).return = r;
                         self.arm_groups(g_num,a_num).sigma = s;
                         self.arm_groups(g_num,a_num).pull_seq = p;
@@ -93,6 +93,19 @@ classdef MultiArmBandit < handle
                 pulls = self.arm_groups(group,arm).pulls;
             catch err
                 error('MultiArmBandit.pull_arm(): invalid group/arm num.');
+            end
+            if (pulls == numel(self.arm_groups(group,arm).pull_seq))
+                % Extend the pull sequence for this arm if need be
+                if strcmpi(self.return_type,'bernoulli')
+                    r = self.arm_groups(group,arm).return;
+                    p = rand(1,1000) < r;
+                else
+                    r = self.arm_groups(group,arm).return;
+                    s = self.arm_groups(group,arm).sigma;
+                    p = (randn(1,1000) .* s) + r;
+                end
+                pull_seq = self.arm_groups(group,arm).pull_seq;
+                self.arm_groups(group,arm).pull_seq = [pull_seq p];
             end
             result = self.arm_groups(group,arm).pull_seq(pulls + 1);
             self.arm_groups(group,arm).pulls = pulls + 1;
@@ -112,7 +125,7 @@ classdef MultiArmBandit < handle
                     for g=1:self.group_count,
                         for a=1:self.arm_count,
                             r = self.arm_groups(g,a).return;
-                            p = rand(1,15000) < r;
+                            p = rand(1,10000) < r;
                             self.arm_groups(g,a).pull_seq = p;
                         end
                     end
@@ -121,7 +134,7 @@ classdef MultiArmBandit < handle
                         for a=1:self.arm_count,
                             r = self.arm_groups(g,a).return;
                             s = self.arm_groups(g,a).sigma;
-                            p = (randn(1,15000) .* s) + r;
+                            p = (randn(1,10000) .* s) + r;
                             self.arm_groups(g,a).pull_seq = p;
                         end
                     end                    

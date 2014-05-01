@@ -28,6 +28,10 @@ classdef BayesTopMOpt < handle
         gap_samples
         % exp_rate is the rate at which to select arms using posterior variance
         exp_rate
+        % delay gives the simulated delay in responding to trials
+        delay
+        % trial_queue holds queued (fake-delayed) trial outcomes
+        trial_queue
     end
     
     methods
@@ -46,6 +50,8 @@ classdef BayesTopMOpt < handle
             self.top_m = top_m;
             self.gap_samples = 10;
             self.exp_rate = 0.05;
+            self.delay = 1;
+            self.trial_queue = [];
             return
         end
         
@@ -76,17 +82,35 @@ classdef BayesTopMOpt < handle
         end
         
         function [ret] = pull_arm(self, group, arm)
-            % Pull the given arm in the managed bandit and record stats
+            % Pull the given arm in the managed bandit and record outcome
             ret = self.bandit.pull_arm(group,arm);
-            self.bandit_stats(group,arm).pulls = ...
-                [self.bandit_stats(group,arm).pulls ret];
-            if (ret == 0)
-                self.bandit_stats(group,arm).b_n = ...
-                    self.bandit_stats(group,arm).b_n + 1;
-            else
-                self.bandit_stats(group,arm).a_n = ...
-                    self.bandit_stats(group,arm).a_n + 1;
+            self.trial_queue = [self.trial_queue; group arm ret];
+            if (size(self.trial_queue, 1) >= self.delay)
+                self.process_trials(self.trial_queue);
+                self.trial_queue = [];
             end
+            return
+        end
+        
+        function [res] = process_trials(self, trial_results)
+            trial_count = size(trial_results,1);
+            for t=1:trial_count,
+                % Get info for this trial
+                group = trial_results(t,1);
+                arm = trial_results(t,2);
+                ret = trial_results(t,3);
+                % Update per-arm beliefs to account for outcome
+                self.bandit_stats(group,arm).pulls = ...
+                    [self.bandit_stats(group,arm).pulls ret];
+                if (ret == 0)
+                    self.bandit_stats(group,arm).b_n = ...
+                        self.bandit_stats(group,arm).b_n + 1;
+                else
+                    self.bandit_stats(group,arm).a_n = ...
+                        self.bandit_stats(group,arm).a_n + 1;
+                end
+            end
+            res = 1;
             return
         end
         
@@ -167,6 +191,10 @@ classdef BayesTopMOpt < handle
         function [best_group] = pick_group(self, group_confs, group_costs)
             % Pick a group to pull from the managed MultiArmBandit. Ignore the
             % groups in sig_groups (which are already assumed confident).
+            if (self.group_count == 1)
+                best_group = 1;
+                return
+            end
             arm_mus = zeros(self.group_count,self.arm_count);
             arm_vars = zeros(self.group_count,self.arm_count);
             for g=1:self.group_count,
@@ -200,24 +228,6 @@ classdef BayesTopMOpt < handle
             end
             return
         end
-        
-%         function [best_group] = pick_group(self, group_confs, group_costs)
-%             % Pick a group to pull from the managed MultiArmBandit. Ignore the
-%             % groups in sig_groups (which are already assumed confident).
-%             if (self.group_count == 1)
-%                 best_group = 1;
-%                 return
-%             end
-%             if ~exist('group_costs','var')
-%                 group_costs = self.compute_group_costs();
-%             end
-%             free_groups = find(group_confs < self.sig_thresh);
-%             free_costs = group_costs(free_groups);
-%             %[best_cost best_idx] = min(free_costs);
-%             %best_group = free_groups(best_idx);
-%             best_group = randsample(free_groups,1,true,free_costs.^(-1));
-%             return
-%         end
         
         function [best_arm min_gap] = pick_arm(self, group, arm_confs)
             % Pick an arm to pull from the managed MultiArmBandit, given the
@@ -497,6 +507,38 @@ classdef BayesTopMOpt < handle
         end
         
     end % END INSTANCE METHODS
+    
+    methods (Static = true)
+        function [policies] = sample_nopt_policies(samples, bandit, trials, m)
+            arm_num = bandit.arm_count;
+            policies = zeros(samples, arm_num);
+            for s=1:samples,
+                returns = zeros(1,arm_num);
+                for a=1:arm_num,
+                    as = bandit.bandit_stats(1,a);
+                    returns(a) = betarnd(as.a_n, as.b_n, 1);
+                end
+                policy = BayesTopMOpt.compute_nopt_policy(returns, trials, m);
+                policies(s,:) = policy;
+            end
+            return
+        end
+        
+        function [policy] = compute_nopt_policy(returns, trials, m)
+            % Compute a near optimal static policy for the given set of returns
+            r_srt = sort(returns,'descend');
+            gap_loc = (r_srt(m) + r_srt(m+1)) / 2;
+            arm_gaps = abs(returns - gap_loc);
+            arm_costs = 1 ./ arm_gaps.^2;
+            policy = ceil(trials * (arm_costs ./ sum(arm_costs)));
+            % clean up from rounding, to make total = trials
+            while (sum(policy) > trials)
+                [val idx] = max(policy);
+                policy(idx) = policy(idx) - 1;
+            end
+            return
+        end
+    end
     
 end
 

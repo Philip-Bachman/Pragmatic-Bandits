@@ -1,7 +1,7 @@
 clear; close all;
 
 arm_counts = [5 10 20 50 75 100];
-test_count = 100;
+test_count = 1;
 group_count = 1;
 top_m = 1;
 a_0 = 1;
@@ -10,6 +10,11 @@ b_0 = 1;
 for ac_num=1:numel(arm_counts),
     % Initialize arm count dependent parameters
     arm_count = arm_counts(ac_num);
+    if (arm_count < 50)
+        delay = 100;
+    else
+        delay = 200;
+    end
     init_rounds = 10 * (group_count * arm_count);
     trial_rounds = 15000  + (round(arm_count/2) * 1000);
     bandit_maker = BernoulliMaker(group_count, arm_count, top_m);
@@ -79,7 +84,7 @@ for ac_num=1:numel(arm_counts),
             end
         end
     end
-    fname = sprintf('res_arm_counts_%d.mat',arm_count);
+    fname = sprintf('res_arm_counts_delay_%d.mat',arm_count);
     save(fname);
 end
 

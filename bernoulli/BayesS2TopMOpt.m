@@ -164,28 +164,56 @@ classdef BayesS2TopMOpt < handle
         function [best_group] = pick_group(self, group_confs)
             % Pick a group to pull from the managed MultiArmBandit. Ignore the
             % groups in sig_groups (which are already assumed confident).
-            arm_mus = zeros(self.group_count,self.arm_count);
-            arm_vars = zeros(self.group_count,self.arm_count);
+            if (self.group_count == 1)
+                best_group = 1;
+                return
+            end           
+            A = zeros(self.group_count, self.arm_count);
+            B = zeros(self.group_count, self.arm_count);
             for g=1:self.group_count,
                 for a=1:self.arm_count,
-                    as = self.bandit_stats(g,a);
-                    r = betarnd(as.a_n, as.b_n);
-                    arm_mus(g,a) = r;
-                    arm_vars(g,a) = r * (1 - r);
+                    A(g,a) = self.bandit_stats(g,a).a_n;
+                    B(g,a) = self.bandit_stats(g,a).b_n;
                 end
             end
+            MAX_SAMPLES = 32;
+            A = repmat(A,[1 1 MAX_SAMPLES]);
+            B = repmat(B,[1 1 MAX_SAMPLES]);
+            all_mus = betarnd(A,B);
+            all_vars = all_mus .* (1 - all_mus);
+            sample_num = 1;
+            while (sample_num <= MAX_SAMPLES),
+                arm_mus = squeeze(all_mus(:,:,sample_num));
+                arm_vars = squeeze(all_vars(:,:,sample_num));
+                % Get the max sampled return for each bandit
+                [max_rets max_arms] = max(arm_mus,[],2);
+                % If some bandit had the target arm (i.e. a=1) best, break
+                if (sum(max_arms == 1) > 0)
+                    sample_num = MAX_SAMPLES + 1;
+                else
+                    sample_num = sample_num + 1;
+                end
+            end
+            [max_rets max_arms] = max(arm_mus,[],2);
             best_group = randi(self.group_count);
-            best_gap = -1e10;
+            best_cost = 1e15;
             for g=1:self.group_count,
                 if (group_confs(g) < self.sig_thresh)
-                    % For group, get the "approximate" gap between arms m and m+1.
+                    % For group, get the gap location between arms m and m+1.
                     [g_mus g_idx] = sort(arm_mus(g,:),'descend');
                     g_vars = arm_vars(g,g_idx);
-                    g_gap = (arm_mus(g,1) - g_mus(self.top_m+1)) / ...
-                        sqrt(arm_vars(g,1) + g_vars(self.top_m+1));
-                    if (g_gap > best_gap)
+                    gap_loc = (g_mus(self.top_m) + g_mus(self.top_m+1)) / 2;
+                    g_gaps = max(abs(g_mus - gap_loc), 1e-5);
+                    numer = (sqrt(g_vars) + sqrt(g_vars + ((16/3).*g_gaps))).^2;
+                    denom = g_gaps.^2;
+                    g_cost = sum(numer ./ denom);
+                    % Apply constant cost shift to bandits without first best
+                    if (max_arms(g) ~= 1)
+                        g_cost = g_cost + 1e8;
+                    end
+                    if (g_cost < best_cost)
                         % Only consider groups that are not yet "significant".
-                        best_gap = g_gap;
+                        best_cost = g_cost;
                         best_group = g;
                     end
                 end
@@ -424,8 +452,8 @@ classdef BayesS2TopMOpt < handle
                     self.run_trial(epsilon, g_sprobs);
                 end
                 % Compute the set of significant groups (sometimes)
-                if (mod(t_num,50) == 0)
-                    g_confs = get_group_confs(100);
+                if (mod(t_num,100) == 0)
+                    g_confs = get_group_confs(250);
                     g_sprobs = self.compute_succ_probs();
                 end
                 group_confs(:,t_num) = g_confs;
@@ -439,7 +467,7 @@ classdef BayesS2TopMOpt < handle
                     end
                     pc = self.get_pull_counts();
                     gpc = sum(pc,2);
-                    fprintf('1P: %.4f\n', gpc(1) / sum(gpc));
+                    fprintf('1P: %.4f\n', sum(gpc(1:5)) / sum(gpc));
                 end
             end
             results = struct();
